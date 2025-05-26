@@ -12,29 +12,31 @@
 #SBATCH --error=prts.err
 #SBATCH --exclusive
 
-cd /path/to/your/prts
+cd /workspace/model/prts
 
 TIME=$(date +%Y-%m-%d-%H-%M-%S)
-SCRIPT_DIR=/path/to/your/prts
+SCRIPT_DIR=/workspace/model/prts
 MODEL_NAME=6L2048H
 METHOD=scratch
-export WANDB_API_KEY=Your WANDB_API_KEY
+# export WANDB_API_KEY=Your WANDB_API_KEY
 
-source /path/to/your/anaconda3/bin/activate
-conda activate your_env
+# source /path/to/your/anaconda3/bin/activate
+# conda activate your_env
 
-srun python pretrain/run_pretrain.py \
-    --num_nodes=4 \
+    # --val_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama-validation \
+
+python pretrain/run_pretrain.py \
+    --num_nodes=1 \
     --model_name=${MODEL_NAME} \
     --name=${MODEL_NAME} \
     --method=${METHOD} \
     --out_dir=${SCRIPT_DIR}/${METHOD}/${TIME} \
-    --train_data_dir=/path/to/your/slimpajama \
-    --devices=8 \
-    --global_batch_size=1024 \
+    --train_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama \
+    --devices=2 \
+    --global_batch_size=512 \
     --learning_rate=1e-3 \
     --min_lr=1e-4 \
-    --micro_batch_size=32 \
+    --micro_batch_size=4 \
     --max_step=300000 \
     --warmup_steps=3000 \
     --log_step_interval=1 \

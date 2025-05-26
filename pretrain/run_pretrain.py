@@ -43,6 +43,16 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.cuda.amp import autocast as autocast
 
 
+# import debugpy
+# import os
+# local_rank = int(os.getenv('LOCAL_RANK', 0))
+# if local_rank < 4:
+#     port = 5678 + local_rank
+#     debugpy.listen(('localhost', port))
+#     print("Waiting for debugger to attach...")
+#     debugpy.wait_for_client()
+#     print(f"GPU {local_rank} Debugger attached in {port}!")
+
 train_config = [
     ("train_slimpajama", 1)
 ]

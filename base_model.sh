@@ -18,21 +18,35 @@ TIME=$(date +%Y-%m-%d-%H-%M-%S)
 SCRIPT_DIR=/workspace/model/prts
 MODEL_NAME=6L2048H
 METHOD=scratch
-# export WANDB_API_KEY=Your WANDB_API_KEY
+export WANDB_API_KEY=5117b0efc6fd7faf972b98be176874ead86ccd43
 
 # source /path/to/your/anaconda3/bin/activate
 # conda activate your_env
 
     # --val_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama-validation \
 
-python pretrain/run_pretrain.py \
-    --num_nodes=1 \
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+GPUS_PER_NODE=4
+NNODES=1
+NODE_RANK=0
+MASTER_ADDR=localhost
+MASTER_PORT=12345
+DISTRIBUTED_ARGS="
+    --nproc_per_node $GPUS_PER_NODE \
+    --nnodes $NNODES \
+    --node_rank $NODE_RANK \
+    --master_addr $MASTER_ADDR \
+    --master_port $MASTER_PORT
+"
+
+torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
+    --num_nodes=${NNODES} \
     --model_name=${MODEL_NAME} \
     --name=${MODEL_NAME} \
     --method=${METHOD} \
     --out_dir=${SCRIPT_DIR}/${METHOD}/${TIME} \
     --train_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama \
-    --devices=2 \
+    --devices=${GPUS_PER_NODE} \
     --global_batch_size=512 \
     --learning_rate=1e-3 \
     --min_lr=1e-4 \

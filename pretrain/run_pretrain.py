@@ -169,7 +169,10 @@ def main(
 
 
     def main(fabric, train_data_dir, val_data_dir, resume_id, resume_ckpt):
-        monitor = Monitor(fabric, window_size=2, time_unit="seconds", log_iter_interval=log_iter_interval)
+        monitor = Monitor(fabric, window_size=2, time_unit="seconds",
+                          log_iter_interval=log_iter_interval, 
+                          resume_id=resume_id // gradient_accumulation_steps,
+                        )
 
         if fabric.global_rank == 0:
             out_dir.mkdir(parents=True, exist_ok=True)
@@ -231,7 +234,7 @@ def main(
             else:
                 model = GPT(config)
         if checkpoint_path is not None:
-            state_dict = torch.load(checkpoint_path)
+            state_dict = torch.load(checkpoint_path,weights_only=False)
             if 'model' in state_dict:
                 model.load_state_dict(state_dict['model'])
             else:
@@ -399,7 +402,7 @@ def main(
                     flops_per_batch=estimated_flops,
                     lengths=total_lengths,
                     train_loss = loss.item(),
-                    lr=lr,
+                    lr=lr
                 )
             
             elif fabric.device.type == "xla":

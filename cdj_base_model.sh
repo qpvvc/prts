@@ -2,11 +2,11 @@
 export WANDB_API_KEY=5117b0efc6fd7faf972b98be176874ead86ccd43
 
 # DEBUG=true
-dsw=true  
+dsw=false
 
 TIME=$(date +%Y%m%d%H%M%S)
 SCRIPT_DIR=/workspace/model/prts
-MODEL_NAME=24L2048H
+MODEL_NAME=6L2048H
 METHOD=scratch
 OUTPUT_DIR="${SCRIPT_DIR}/${METHOD}/${MODEL_NAME}_llama2"
 DATASET_BASE=/mnt/nas_v2/common/public/dataset
@@ -30,9 +30,13 @@ else
   MASTER_ADDR=localhost
   MASTER_PORT=$(shuf -i 6000-6100 -n 1)
 
-  export CUDA_VISIBLE_DEVICES=4,5,6,7
+  GPUS_PER_NODE=8
+  export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+  # GPUS_PER_NODE=4
+  # export CUDA_VISIBLE_DEVICES=4,5,6,7
+  # GPUS_PER_NODE=2  
   # export CUDA_VISIBLE_DEVICES=6,7
-  GPUS_PER_NODE=4
+
   NNODES=1
   RANK=0
 fi
@@ -44,6 +48,7 @@ DISTRIBUTED_ARGS="
     --master_addr $MASTER_ADDR \
     --master_port $MASTER_PORT
 "
+    # --checkpoint_path=/workspace/model/prts/scratch/6L2048H_llama2/iter-064000-ckpt.pth \
 
 torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --num_nodes=${NNODES} \
@@ -63,10 +68,12 @@ torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --log_step_interval=1 \
     --eval_iters=1000 \
     --save_step_interval=500 \
-    --eval_step_interval=5000 \
+    --eval_step_interval=50000 \
     --weight_decay=1e-1 \
     --beta1=0.9 \
     --beta2=0.95 \
     --grad_clip=1.0 \
     --decay_lr=True \
+    --resume_ckpt=/workspace/model/prts/scratch/6L2048H_llama2/iter-064000-ckpt.pth \
+    --resume_id=64000 \
     ${debug_option} 2>&1 |tee ${OUTPUT_DIR}/training-log-${RANK}-${TIME}.txt

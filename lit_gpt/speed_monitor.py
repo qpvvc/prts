@@ -187,6 +187,7 @@ class SpeedMonitorBase:
         window_size: int = 100,
         time_unit: str = "hours",
         log_iter_interval: int = 1,
+        resume_id: Optional[int] = None,  # used to resume logging from a specific iteration
     ):
         self.flops_available = flops_available
         self.log_dict = log_dict
@@ -214,8 +215,12 @@ class SpeedMonitorBase:
 
         # Keep track of time spent evaluating
         self.total_eval_wct = 0.0
-        self.iter = -1
-
+        if resume_id is not None:
+            self.iter = resume_id * log_iter_interval
+        else:
+            self.iter = -1
+        # print(self.iter, "SpeedMonitorBase initialized with resume_id:", resume_id)
+        
     def on_train_batch_end(
         self,
         samples: int,  # total samples seen (per device)
@@ -226,7 +231,8 @@ class SpeedMonitorBase:
         train_loss: Optional[float] = None,
         lr: Optional[float] = None,  # learning rate
     ):
-        self.iter += 1
+
+        self.iter += 1    
         metrics = {}
 
         self.history_samples.append(samples)

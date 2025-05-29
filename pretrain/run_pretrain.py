@@ -43,20 +43,13 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.cuda.amp import autocast as autocast
 
 
-# import debugpy
-# import os
-# local_rank = int(os.getenv('LOCAL_RANK', 0))
-# if local_rank < 4:
-#     port = 5678 + local_rank
-#     debugpy.listen(('localhost', port))
-#     print("Waiting for debugger to attach...")
-#     debugpy.wait_for_client()
-#     print(f"GPU {local_rank} Debugger attached in {port}!")
 
 train_config = [
     ("train_slimpajama", 1)
 ]
-
+valid_config = [
+    ("validation_slimpajama", 1)
+]
 def main(
     model_name = "tiny_LLaMA_1b",
     name = "tiny_LLaMA_1b",
@@ -87,6 +80,7 @@ def main(
     src_init_path: Optional[str] = None,
     resume_id: int = 0,
     resume_ckpt: Path = None,
+    debug: bool = False,
 ) -> None:
     batch_size = global_batch_size // (devices * num_nodes)
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -94,8 +88,19 @@ def main(
     warmup_iters = warmup_steps * gradient_accumulation_steps
     max_iters = max_step * gradient_accumulation_steps
     lr_decay_iters = max_iters
-    log_iter_interval = log_step_interval * gradient_accumulation_steps
-
+    log_iter_interval = log_step_interval #* gradient_accumulation_steps
+    
+    if debug:
+        import debugpy
+        import os
+        local_rank = int(os.getenv('LOCAL_RANK', 0))
+        if local_rank < 4:
+            port = 5678 + local_rank
+            debugpy.listen(('localhost', port))
+            print("Waiting for debugger to attach...")
+            debugpy.wait_for_client()
+            print(f"GPU {local_rank} Debugger attached in {port}!")
+            
     # logger = step_csv_logger("log", name, flush_logs_every_n_steps=log_iter_interval)
     global hparams
     hparams = {
@@ -127,8 +132,9 @@ def main(
         "src_init_path": src_init_path,
         "resume_id": resume_id,
         "resume_ckpt": resume_ckpt
-    }
-    wandb_logger = WandbLogger()
+        }
+    
+    wandb_logger = WandbLogger(name=name)
     def setup(
         devices: int = 8,
         train_data_dir: Path = Path("data/redpajama_sample"),
@@ -167,7 +173,7 @@ def main(
 
         if fabric.global_rank == 0:
             out_dir.mkdir(parents=True, exist_ok=True)
-
+                   
         # config = Config.from_name(model_name)
         if method == "scratch":
             config = Config.from_name(model_name)
@@ -231,7 +237,20 @@ def main(
             else:
                 model.load_state_dict(state_dict)
             state_dict = None
-
+            
+        # with torch.device("meta"):
+        #     meta_model = GPT(config)
+        #     # "estimated" is not as precise as "measured". Estimated is optimistic but widely used in the wild.
+        #     # When comparing MFU or FLOP numbers with other projects that use estimated FLOPs,
+        #     # consider passing `SpeedMonitor(flops_per_batch=estimated_flops)` instead
+        #     estimated_flops = estimate_flops(meta_model) * micro_batch_size
+        #     fabric.print(f"Estimated TFLOPs: {estimated_flops * fabric.world_size / 1e12:.2f}")
+        #     x = torch.randint(0, 1, (micro_batch_size, model.config.block_size))
+        #     # measured_flos run in meta. Will trigger fusedRMSNorm error
+        #     measured_flops = measure_flops(meta_model, x)
+        #     fabric.print(f"Measured TFLOPs: {measured_flops * fabric.world_size / 1e12:.2f}")
+        #     del meta_model, x
+            
         model = fabric.setup(model)
         fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
         fabric.print(f"Total parameters {num_parameters(model):,}")
@@ -261,12 +280,13 @@ def main(
             fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
 
 
+            
     def train(fabric, state, train_dataloader, val_dataloader, monitor, resume_id, resume_ckpt):
         model = state["model"]
         optimizer = state["optimizer"]
 
-        if val_dataloader is not None:
-            validate(fabric, model, val_dataloader)  # sanity check
+        # if val_dataloader is not None:
+            # validate(fabric, model, val_dataloader)  # sanity check
 
         # with torch.device("meta"):
         #     meta_model = GPT(Config.from_name(config.trg_config_name))
@@ -355,32 +375,63 @@ def main(
                 
                 if hparams['method'] == 'msg':
                     state["model"].step()
-
+                    
+                # input_id: B L 
+                # total_lengths += input_ids.size(1)
+                t1 = time.perf_counter()
+                fabric.print(
+                        f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
+                        f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
+                        f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
+                        # print days as well
+                        f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
+                    )
+                
+                estimated_flops = estimate_flops(model) * micro_batch_size * gradient_accumulation_steps
+                if state["step_count"] == 1:
+                    fabric.print(f"Estimated TFLOPs: {estimated_flops / 1e12:.2f}, micro_batch_size: {micro_batch_size}, gradient_accumulation_steps: {gradient_accumulation_steps}, world_size: {fabric.world_size}")
+                
+                monitor.on_train_batch_end(
+                    state["iter_num"] * micro_batch_size,
+                    t1 - total_t0,
+                    # this assumes that device FLOPs are the same and that all devices have the same batch size
+                    fabric.world_size,
+                    flops_per_batch=estimated_flops,
+                    lengths=total_lengths,
+                    train_loss = loss.item(),
+                    lr=lr,
+                )
+            
             elif fabric.device.type == "xla":
                 xm.mark_step()
             state["iter_num"] += 1
             # input_id: B L 
             total_lengths += input_ids.size(1)
-            t1 = time.perf_counter()
-            fabric.print(
-                    f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
-                    f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
-                    f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
-                    # print days as well
-                    f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
-                )
-    
-            monitor.on_train_batch_end(
-                state["iter_num"] * micro_batch_size,
-                t1 - total_t0,
-                # this assumes that device FLOPs are the same and that all devices have the same batch size
-                fabric.world_size,
-                state["step_count"],
-                lengths=total_lengths,
-                train_loss = loss.item()
-            )
+            # t1 = time.perf_counter()
+            # fabric.print(
+            #         f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
+            #         f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
+            #         f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
+            #         # print days as well
+            #         f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
+            #     )
+            
+            # estimated_flops = estimate_flops(model) * micro_batch_size
+            # fabric.print(f"Estimated TFLOPs: {estimated_flops * fabric.world_size / 1e12:.2f}")
+            
+            # monitor.on_train_batch_end(
+            #     state["iter_num"] * micro_batch_size,
+            #     t1 - total_t0,
+            #     # this assumes that device FLOPs are the same and that all devices have the same batch size
+            #     fabric.world_size,
+            #     flops_per_batch=estimated_flops,
+            #     lengths=total_lengths,
+            #     train_loss = loss.item(),
+            #     lr=lr,
+            # )
                 
-            if val_dataloader is not None and not is_accumulating and state["step_count"] % eval_step_interval == 0:
+            if val_dataloader is not None and not is_accumulating and \
+                state["step_count"] % eval_step_interval == 0 and state["step_count"] > 0:
                 
                 t0 = time.perf_counter()
                 val_loss = validate(fabric, model, val_dataloader)
@@ -390,6 +441,7 @@ def main(
                 fabric.log_dict({"metric/val_loss": val_loss.item(), "total_tokens":  model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size},state["step_count"])
                 fabric.log_dict({"metric/val_ppl": math.exp(val_loss.item()), "total_tokens":  model.config.block_size * (state["iter_num"] + 1) * micro_batch_size * fabric.world_size},state["step_count"])
                 fabric.barrier()
+                
             if not is_accumulating and state["step_count"] % save_step_interval == 0:
                 if hparams['method'] == 'ligo':
                     with FSDP.summon_full_params(model, with_grads=False):
@@ -438,7 +490,13 @@ def main(
         batch_size: int, block_size: int, data_dir: Path, fabric, shuffle: bool = True, seed: int = 12345, split="train"
     ) -> DataLoader:
         datasets = []
-        data_config = train_config if split == "train" else None # TODO
+        if split == "train":
+            data_config = train_config
+        elif split == "validation":
+            data_config = valid_config
+        else:
+            raise ValueError(f"Unknown split: {split}. Expected 'train' or 'validation'.")
+        
         for prefix, _ in data_config:
             filenames = sorted(glob.glob(str(data_dir / f"{prefix}*")))
             random.seed(seed)

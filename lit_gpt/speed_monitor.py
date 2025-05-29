@@ -224,6 +224,7 @@ class SpeedMonitorBase:
         flops_per_batch: Optional[int] = None,  # (per device)
         lengths: Optional[int] = None,  # total length of the samples seen (per device)
         train_loss: Optional[float] = None,
+        lr: Optional[float] = None,  # learning rate
     ):
         self.iter += 1
         metrics = {}
@@ -264,7 +265,8 @@ class SpeedMonitorBase:
                     metrics.update(
                         {
                             "metric/train_loss": avg_loss,
-                            "metric/train_ppl": math.exp(avg_loss)
+                            "metric/train_ppl": math.exp(avg_loss),
+                            "metric/learning_rate": lr if lr is not None else 0.0,
                         }
                     )
 
@@ -274,13 +276,13 @@ class SpeedMonitorBase:
         if len(self.history_flops) == self.history_flops.maxlen:
             elapsed_flops = sum(self.history_flops) - self.history_flops[0]
             elapsed_wct = self.history_wct[-1] - self.history_wct[0]
-            flops_per_sec = elapsed_flops / elapsed_wct
-            device_flops_per_sec = flops_per_sec / world_size
+            tflops_per_sec = elapsed_flops / elapsed_wct / 1e12  # convert to TFlops
+            device_tflops_per_sec = tflops_per_sec / world_size
             metrics.update(
-                {"throughput/flops_per_sec": flops_per_sec, "throughput/device/flops_per_sec": device_flops_per_sec}
+                {"throughput/tflops_per_sec": tflops_per_sec, "throughput/device/tflops_per_sec": device_tflops_per_sec}
             )
             if self.flops_available:
-                metrics["throughput/device/mfu"] = device_flops_per_sec / self.flops_available
+                metrics["throughput/device/mfu"] = device_tflops_per_sec * 1e12 / self.flops_available
 
         metrics.update(
             {

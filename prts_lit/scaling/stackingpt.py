@@ -22,7 +22,7 @@ class Stackingpt:
 
     def set_param(self):
         state_to_load = {}
-        src_state = torch.load(self.config.src_init_path)['model']
+        src_state = torch.load(self.config.src_init_path, weights_only=False)['model']
         for k, p in src_state.items():
             if self.config.embd_name + '.' in k:
                 state_to_load.update({k: p})

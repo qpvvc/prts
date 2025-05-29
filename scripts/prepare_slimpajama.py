@@ -16,12 +16,17 @@ import lit_gpt.packed_dataset as packed_dataset
 from lit_gpt import Tokenizer
 
 # Filename for SlimPajama
+# slimpajama_sets = {
+#     "train": "train/chunk*/*",
+#     "validation": "validation/chunk*/*",
+#     "test": "test/chunk*/*",
+# }
+
 slimpajama_sets = {
-    "train": "train/chunk*/*",
+    "train": "train/chunk*/*", #cdj Adjusted to only include chunk1 for training
     "validation": "validation/chunk*/*",
     "test": "test/chunk*/*",
 }
-
 
 def prepare_full(
     source_path: Path,
@@ -73,7 +78,7 @@ def prepare(
     source_path: Path = Path("data/RedPajama-Data-1T-Sample"),
     tokenizer_path: Path = Path("checkpoints/lit-llama/tokenizer.model"),
     destination_path: Path = Path("data/red_pajama_sample"),
-    chunk_size: int = 2049 * 1024,
+    chunk_size: int = 2049 * 8192, #cdj 2049 tokens * 8192 sequences
     split: str="train",
     percentage: float = 1.0,
 ) -> None:

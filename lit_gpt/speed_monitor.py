@@ -216,7 +216,7 @@ class SpeedMonitorBase:
         # Keep track of time spent evaluating
         self.total_eval_wct = 0.0
         if resume_id is not None:
-            self.iter = resume_id * log_iter_interval
+            self.iter = resume_id
         else:
             self.iter = -1
         # print(self.iter, "SpeedMonitorBase initialized with resume_id:", resume_id)

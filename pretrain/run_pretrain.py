@@ -88,7 +88,7 @@ def main(
     warmup_iters = warmup_steps * gradient_accumulation_steps
     max_iters = max_step * gradient_accumulation_steps
     lr_decay_iters = max_iters
-    log_iter_interval = log_step_interval #* gradient_accumulation_steps
+    log_iter_interval = log_step_interval * gradient_accumulation_steps
     
     if debug:
         import debugpy
@@ -233,6 +233,7 @@ def main(
                 model = get_prts_model(src_model, trg_model, prts_config=config)
             else:
                 model = GPT(config)
+                print(f"Instantiating model {model_name} with {config.__dict__}")
         if checkpoint_path is not None:
             state_dict = torch.load(checkpoint_path,weights_only=False)
             if 'model' in state_dict:
@@ -380,8 +381,38 @@ def main(
                     state["model"].step()
                     
                 # input_id: B L 
-                # total_lengths += input_ids.size(1)
-                t1 = time.perf_counter()
+                # total_lengths += input_ids.size(1) * gradient_accumulation_steps
+                # t1 = time.perf_counter()
+                # fabric.print(
+                #         f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
+                #         f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
+                #         f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
+                #         # print days as well
+                #         f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
+                #     )
+                
+                # estimated_flops = estimate_flops(model) * micro_batch_size * gradient_accumulation_steps
+                # if state["step_count"] == 1:
+                #     fabric.print(f"Estimated TFLOPs: {estimated_flops / 1e12:.2f}, micro_batch_size: {micro_batch_size}, gradient_accumulation_steps: {gradient_accumulation_steps}, world_size: {fabric.world_size}")
+                
+                # monitor.on_train_batch_end(
+                #     state["iter_num"] * micro_batch_size* gradient_accumulation_steps,
+                #     t1 - total_t0,
+                #     # this assumes that device FLOPs are the same and that all devices have the same batch size
+                #     fabric.world_size,
+                #     flops_per_batch=estimated_flops,
+                #     lengths=total_lengths,
+                #     train_loss = loss.item(),
+                #     lr=lr
+                # )
+            
+            elif fabric.device.type == "xla":
+                xm.mark_step()
+            state["iter_num"] += 1
+            #input_id: B L 
+            total_lengths += input_ids.size(1)
+            t1 = time.perf_counter()
+            if not is_accumulating:
                 fabric.print(
                         f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
                         f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
@@ -389,49 +420,21 @@ def main(
                         # print days as well
                         f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
                     )
-                
-                estimated_flops = estimate_flops(model) * micro_batch_size * gradient_accumulation_steps
-                if state["step_count"] == 1:
-                    fabric.print(f"Estimated TFLOPs: {estimated_flops / 1e12:.2f}, micro_batch_size: {micro_batch_size}, gradient_accumulation_steps: {gradient_accumulation_steps}, world_size: {fabric.world_size}")
-                
-                monitor.on_train_batch_end(
-                    state["iter_num"] * micro_batch_size,
-                    t1 - total_t0,
-                    # this assumes that device FLOPs are the same and that all devices have the same batch size
-                    fabric.world_size,
-                    flops_per_batch=estimated_flops,
-                    lengths=total_lengths,
-                    train_loss = loss.item(),
-                    lr=lr
-                )
             
-            elif fabric.device.type == "xla":
-                xm.mark_step()
-            state["iter_num"] += 1
-            # input_id: B L 
-            total_lengths += input_ids.size(1)
-            # t1 = time.perf_counter()
-            # fabric.print(
-            #         f"iter {state['iter_num']} step {state['step_count']}: loss {loss.item():.4f}, iter time:"
-            #         f" {(t1 - iter_t0) * 1000:.2f}ms{' (optimizer.step)' if not is_accumulating else ''}"
-            #         f" remaining time: {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600:.2f} hours. " 
-            #         # print days as well
-            #         f" or {(t1 - total_t0) / (state['iter_num'] - initial_iter) * (max_iters - state['iter_num']) / 3600 / 24:.2f} days. "
-            #     )
+            estimated_flops = estimate_flops(model) * micro_batch_size #* gradient_accumulation_steps
+            if state["iter_num"] == 1:            
+                fabric.print(f"Estimated TFLOPs: {estimated_flops * fabric.world_size / 1e12:.2f}, micro_batch_size: {micro_batch_size}, gradient_accumulation_steps: {gradient_accumulation_steps}, world_size: {fabric.world_size}")
             
-            # estimated_flops = estimate_flops(model) * micro_batch_size
-            # fabric.print(f"Estimated TFLOPs: {estimated_flops * fabric.world_size / 1e12:.2f}")
-            
-            # monitor.on_train_batch_end(
-            #     state["iter_num"] * micro_batch_size,
-            #     t1 - total_t0,
-            #     # this assumes that device FLOPs are the same and that all devices have the same batch size
-            #     fabric.world_size,
-            #     flops_per_batch=estimated_flops,
-            #     lengths=total_lengths,
-            #     train_loss = loss.item(),
-            #     lr=lr,
-            # )
+            monitor.on_train_batch_end(
+                state["iter_num"] * micro_batch_size,
+                t1 - total_t0,
+                # this assumes that device FLOPs are the same and that all devices have the same batch size
+                fabric.world_size,
+                flops_per_batch=estimated_flops,
+                lengths=total_lengths,
+                train_loss = loss.item(),
+                lr=lr,
+            )
                 
             if val_dataloader is not None and not is_accumulating and \
                 state["step_count"] % eval_step_interval == 0 and state["step_count"] > 0:
@@ -452,15 +455,15 @@ def main(
                             state_dict = state['model'].get_trg_params()
                             hyper_state_dcit = state['model'].get_hypernet_dict()
                         if fabric.global_rank == 0:
-                            checkpoint_trg_path = out_dir / f"iter-{state['iter_num']:06d}-ckpt.pth"
-                            checkpoint_hypernet_path = out_dir / f"iter-{state['iter_num']:06d}-hypernet-ckpt.pth"
+                            checkpoint_trg_path = out_dir / f"iter-{state['iter_num']:06d}-{state['step_count']:06d}-ckpt.pth"
+                            checkpoint_hypernet_path = out_dir / f"iter-{state['iter_num']:06d}-{state['step_count']:06d}-hypernet-ckpt.pth"
                             fabric.print(f"Saving checkpoint to {str(checkpoint_trg_path)!r}")
                             torch.save(state_dict, checkpoint_trg_path)
                             fabric.print(f"Saving checkpoint to {str(checkpoint_hypernet_path)!r}")
                             torch.save(hyper_state_dcit, checkpoint_hypernet_path)
                         fabric.barrier()
                 else:
-                    checkpoint_path = out_dir / f"iter-{state['iter_num']:06d}-ckpt.pth"
+                    checkpoint_path = out_dir / f"iter-{state['iter_num']:06d}-{state['step_count']:06d}-ckpt.pth"
                     fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
                     fabric.save(checkpoint_path, state)
 

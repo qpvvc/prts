@@ -126,6 +126,12 @@ pythia = [
     dict(
         org="EleutherAI", name="pythia-410m", block_size=2048, n_layer=24, n_embd=1024, n_head=16, padding_multiple=128
     ),
+    dict(
+        org="EleutherAI", name="pythia-410m-depth-2", block_size=2048, n_layer=48, n_embd=1024, n_head=16, padding_multiple=128
+    ),    
+        dict(
+        org="EleutherAI", name="pythia-410m-width-2", block_size=2048, n_layer=24, n_embd=2048, n_head=16, padding_multiple=128
+    ),    
     # https://huggingface.co/EleutherAI/pythia-1b/blob/main/config.json
     dict(org="EleutherAI", name="pythia-1b", block_size=2048, n_layer=16, n_embd=2048, n_head=8, padding_multiple=128),
     # https://huggingface.co/EleutherAI/pythia-1.4b/blob/main/config.json
@@ -331,6 +337,23 @@ tiny_LLaMA = [
         _mlp_class="LLaMAMLP",
         intermediate_size=5632,
     ),
+    dict(
+        org="HKGAI",
+        name="6L2048H_llama3",
+        block_size=2048,
+        vocab_size=128256, #cdj
+        padding_multiple=64,
+        n_layer=6,
+        n_head=32,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+    ),    
     dict(
         org="HKGAI",
         name="12L2048H",
@@ -595,6 +618,42 @@ tiny_LLaMA = [
         intermediate_size=5632,
         n_query_groups=4,
     ),
+    dict(
+        org="HKGAI",
+        name="tiny_LLaMA3_400M_like1.1B",
+        block_size=2048,
+        vocab_size=128256,
+        padding_multiple=64,
+        n_layer=8,
+        n_head=16,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),
+    dict(
+        org="HKGAI",
+        name="tiny_LLaMA3_1.1B",
+        block_size=2048,
+        vocab_size=128256,
+        padding_multiple=64,
+        n_layer=24,
+        n_head=16,
+        n_embd=2048,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="FusedRMSNorm",
+        norm_eps=1e-5,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=5632,
+        n_query_groups=4,
+    ),    
     dict(
         org="HKGAI",
         name="tiny_LLaMA_1.1B_1kv",

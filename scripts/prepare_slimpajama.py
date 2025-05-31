@@ -22,6 +22,11 @@ from lit_gpt import Tokenizer
 #     "test": "test/chunk*/*",
 # }
 
+# python scripts/prepare_slimpajama.py --source_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B --tokenizer_path /workspace/model/gpt-neox/pythia-160m-deduped  --destination_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B/pythia-train-chunk1 --split train --percentage 1.0
+# python scripts/prepare_slimpajama.py --source_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B --tokenizer_path /workspace/model/gpt-neox/pythia-160m-deduped  --destination_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B/pythia-train --split train --percentage 1.0
+# python scripts/prepare_slimpajama.py --source_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B --tokenizer_path /workspace/model/tokenizer/llama2  --destination_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B/llama2-train-chunk1 --split train --percentage 1.0
+# python scripts/prepare_slimpajama.py --source_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B --tokenizer_path /workspace/model/tokenizer/Meta-Llama-3-8B  --destination_path /mnt/nas_v2/common/public/dataset/SlimPajama-627B/llama3-train --split train --percentage 1.0
+
 slimpajama_sets = {
     "train": "train/chunk*/*", #cdj Adjusted to only include chunk1 for training
     "validation": "validation/chunk*/*",

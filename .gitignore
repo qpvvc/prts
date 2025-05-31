@@ -3,3 +3,5 @@ venv_prt
 wandb
 scratch
 stacking
+lit_gpt/config copy.py
+venv_prts

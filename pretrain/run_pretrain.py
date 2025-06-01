@@ -283,7 +283,14 @@ def main(
         if fabric.device.type == "cuda":
             fabric.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
 
-
+    def get_activation_capture_hook(layer_name: str, activations_dict: dict):
+        def hook(module, input, output):
+            if isinstance(output, tuple):
+                activation = output[0]
+            else:
+                activation = output
+            activations_dict[layer_name] = activation.detach().cpu()
+        return hook
             
     def train(fabric, state, train_dataloader, val_dataloader, monitor, resume_id, resume_ckpt):
         model = state["model"]
@@ -310,7 +317,6 @@ def main(
 
         if fabric.device.type == "xla":
             import torch_xla.core.xla_model as xm
-
             xm.mark_step()
         
         
@@ -319,6 +325,8 @@ def main(
                 
         loss_func = FusedCrossEntropyLoss()
         distill_loss_func = DistillLoss()
+        captured_activations_for_ckpt = {}
+        activation_hook_handles = []        
         for  train_data in train_dataloader:
             # resume loader state. This is not elegant but it works. Should rewrite it in the future.
             if resume_id > 0:
@@ -347,6 +355,22 @@ def main(
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
 
+            is_about_to_save_step = False
+            if not is_accumulating and (state["step_count"] + 1) % save_step_interval == 0:
+                is_about_to_save_step = True
+
+            if is_about_to_save_step:
+                fabric.print(f"Step {state['step_count'] + 1}: Registering hooks for activation capture.")
+                captured_activations_for_ckpt.clear() 
+                activation_hook_handles.clear() 
+                
+                for name, module_instance in model.named_modules():
+                    if isinstance(module_instance, Block):
+                        handle = module_instance.register_forward_hook(
+                            get_activation_capture_hook(name, captured_activations_for_ckpt)
+                        )
+                        activation_hook_handles.append(handle)
+                        
             iter_t0 = time.perf_counter()
             input_ids = train_data[:, 0 : model.config.block_size].contiguous()
             targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
@@ -467,6 +491,23 @@ def main(
                     fabric.print(f"Saving checkpoint to {str(checkpoint_path)!r}")
                     fabric.save(checkpoint_path, state)
 
+                    if captured_activations_for_ckpt and fabric.global_rank == 0:
+                        #out_dir = Path(state["hparams"]["out_dir"]) # 从 state 中获取 hparams
+                        activations_filename = f"activations-iter-{state['iter_num']:06d}-step-{state['step_count']}-rank0.pt"
+                        activations_path = out_dir / activations_filename
+                        torch.save(captured_activations_for_ckpt, activations_path)
+                        fabric.print(f"Saved captured activations to {activations_path}")
+                    
+                    if fabric.device.type == "cuda":
+                        torch.cuda.synchronize()
+                    fabric.print(f"Time to persist checkpoint and activations: {(time.perf_counter() - t0):.2f}s")
+
+            if is_about_to_save_step: # 或者 if activation_hook_handles:
+                fabric.print(f"Step {state['step_count']}: Removing activation capture hooks.")
+                for handle in activation_hook_handles:
+                    handle.remove()
+                activation_hook_handles.clear()
+                # captured_activations_for_ckpt.clear()                    
             
     @torch.no_grad()
     def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader) -> torch.Tensor:

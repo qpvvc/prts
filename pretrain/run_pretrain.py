@@ -423,7 +423,7 @@ def main(
             
             estimated_flops = estimate_flops(model) * micro_batch_size #* gradient_accumulation_steps
             if state["iter_num"] == 1:            
-                fabric.print(f"Estimated TFLOPs: {estimated_flops * fabric.world_size / 1e12:.2f}, micro_batch_size: {micro_batch_size}, gradient_accumulation_steps: {gradient_accumulation_steps}, world_size: {fabric.world_size}")
+                fabric.print(f"Estimated TFLOPs: {estimated_flops / 1e12:.2f}, micro_batch_size: {micro_batch_size}, gradient_accumulation_steps: {gradient_accumulation_steps}, world_size: {fabric.world_size}")
             
             monitor.on_train_batch_end(
                 state["iter_num"] * micro_batch_size,

@@ -4,12 +4,37 @@ source /workspace/model/prts/venv_prts/bin/activate
 which python
 
 # DEBUG=true
-#DLC=true
+DLC=true
 
 TIME=$(date +%Y%m%d%H%M%S)
 SCRIPT_DIR=/workspace/model/prts
-MODEL_NAME=6L2048H_llama3
-METHOD=scratch
+
+#METHOD=scratch
+#MODEL_NAME=6L2048H_llama3
+#MODEL_NAME=tiny_LLaMA_400M_like1.1B
+#MODEL_NAME=tiny_LLaMA_400M_like1.1B_width
+#MODEL_NAME=tiny_LLaMA_1.1B
+
+
+METHOD=stacking
+MODEL_NAME=tiny_LLaMA_410M_1.1B_10B # only for log
+CONFIG="${SCRIPT_DIR}/prts_configs/stacking_8L_24L.json"
+
+
+METHOD=b2b
+# # MODEL_NAME=6L2048H_6L4096H # only for log
+# # CONFIG="${SCRIPT_DIR}/prts_configs/b2b_6L1024H.json"
+MODEL_NAME=tiny_LLaMA_400M_1.1B_width
+CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_width.json"
+# MODEL_NAME=tiny_LLaMA_400M_1.1B_depth
+# CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_depth.json"
+
+if [ "${METHOD}" == "scratch" ]; then
+    resume_option=""
+else
+    resume_option="--resume_id=80000"
+fi
+
 OUTPUT_DIR="${SCRIPT_DIR}/${METHOD}/${MODEL_NAME}"
 DATASET_BASE=/mnt/nas_v2/common/public/dataset
 
@@ -62,6 +87,12 @@ else
     "
 fi
 
+if [[ -z ${CONFIG} ]]; then
+    config_option=""
+else
+    config_option="--config_path=${CONFIG}"
+fi
+
 DISTRIBUTED_ARGS="
     --nproc_per_node $GPUS_PER_NODE \
     --nnodes $NNODES \
@@ -77,12 +108,13 @@ DISTRIBUTED_ARGS="
 torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --num_nodes=${NNODES} \
     --model_name=${MODEL_NAME} \
-    --name=${MODEL_NAME} \
+    --name=${METHOD}+${MODEL_NAME} \
     --method=${METHOD} \
+    ${config_option} \
     --out_dir=${OUTPUT_DIR}\
     ${dataset_option} \
     --devices=${GPUS_PER_NODE} \
-    --global_batch_size=1024 \
+    --global_batch_size=2048 \
     --learning_rate=3e-4 \
     --min_lr=3e-5 \
     --micro_batch_size=8 \
@@ -97,4 +129,5 @@ torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --beta2=0.95 \
     --grad_clip=1.0 \
     --decay_lr=True \
+    ${resume_option} \
     ${debug_option} 2>&1 |tee ${OUTPUT_DIR}/training-log-${RANK}-${TIME}.txt

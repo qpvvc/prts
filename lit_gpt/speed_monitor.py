@@ -217,9 +217,10 @@ class SpeedMonitorBase:
         self.total_eval_wct = 0.0
         if resume_id is not None:
             self.iter = resume_id
+            print(self.iter, "SpeedMonitorBase initialized with resume_id:", resume_id)            
         else:
             self.iter = -1
-        # print(self.iter, "SpeedMonitorBase initialized with resume_id:", resume_id)
+
         
     def on_train_batch_end(
         self,

@@ -5,3 +5,21 @@ scratch
 stacking
 lit_gpt/config copy.py
 venv_prts
+base_model_pythia_12L1536H.sh
+base_model.sh
+cdj_base_model_pythia.sh
+cdj_base_model_tinyllama.sh
+cdj_base_model-1.sh
+cdj_g_stack.sh
+g_direct_bert2bert.sh
+g_stack_debug.sh
+g_stack.sh
+pretrain/run_pretrain.py
+prts_configs/b2b_6L_24L.json
+prts_configs/stacking_6L_24L.json
+base_model.sh
+cdj_g_stack.sh
+g_stack.sh
+pretrain/run_pretrain.py
+prts_configs/stacking_6L_24L.json
+b2b

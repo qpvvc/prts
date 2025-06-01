@@ -1,0 +1,10 @@
+{
+    "src_config_name": "tiny_LLaMA_400M_like1.1B",
+    "trg_config_name": "tiny_LLaMA_1.1B",
+    "src_init_path": "/workspace/model/prts/scratch/tiny_LLaMA_400M_like1.1B/iter-080000-002500-ckpt.pth",
+    "stacking_list": [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7],
+    "embd_name": "wte",
+    "ln_name": "ln_f",
+    "head_name": "lm_head",
+    "layer_name": "h"
+}

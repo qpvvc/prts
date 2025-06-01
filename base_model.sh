@@ -1,5 +1,6 @@
 #!/bin/bash
 
+
 # SLURM SUBMIT SCRIPT
 #SBATCH --job prts
 #SBATCH --partition=Your partition
@@ -30,7 +31,7 @@ GPUS_PER_NODE=4
 NNODES=1
 NODE_RANK=0
 MASTER_ADDR=localhost
-MASTER_PORT=12345
+MASTER_PORT=$(shuf -i 6000-6100 -n 1)
 DISTRIBUTED_ARGS="
     --nproc_per_node $GPUS_PER_NODE \
     --nnodes $NNODES \
@@ -38,6 +39,7 @@ DISTRIBUTED_ARGS="
     --master_addr $MASTER_ADDR \
     --master_port $MASTER_PORT
 "
+    # --val_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama-validation \
 
 torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --num_nodes=${NNODES} \
@@ -47,16 +49,16 @@ torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --out_dir=${SCRIPT_DIR}/${METHOD}/${TIME} \
     --train_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama \
     --devices=${GPUS_PER_NODE} \
-    --global_batch_size=512 \
-    --learning_rate=1e-3 \
-    --min_lr=1e-4 \
-    --micro_batch_size=4 \
+    --global_batch_size=2048 \
+    --learning_rate=3e-4 \
+    --min_lr=3e-5 \
+    --micro_batch_size=8 \
     --max_step=300000 \
     --warmup_steps=3000 \
     --log_step_interval=1 \
     --eval_iters=10000 \
-    --save_step_interval=5000 \
-    --eval_step_interval=5000 \
+    --save_step_interval=500 \
+    --eval_step_interval=500 \
     --weight_decay=1e-1 \
     --beta1=0.9 \
     --beta2=0.95 \

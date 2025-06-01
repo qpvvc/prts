@@ -12,28 +12,40 @@
 #SBATCH --error=prts.err
 #SBATCH --exclusive
 
-cd /path/to/your/prts
+cd /workspace/model/prts
 
 TIME=$(date +%Y-%m-%d-%H-%M-%S)
-SCRIPT_DIR=/aifs4su/data/tongxuluo/PRTS
+SCRIPT_DIR=/workspace/model/prts
 MODEL_NAME=24L2048H
 METHOD=stacking
 CONFIG="./prts_configs/stacking_6L_24L.json"
-export WANDB_API_KEY=Your WANDB_API_KEY
+export WANDB_API_KEY=5117b0efc6fd7faf972b98be176874ead86ccd43
 
-source /home/tongxuluo/env/anaconda3/bin/activate
-conda activate tinyllama
+# export CUDA_VISIBLE_DEVICES=4,5,6,7
+GPUS_PER_NODE=8
+NNODES=1
+NODE_RANK=0
+MASTER_ADDR=localhost
+MASTER_PORT=$(shuf -i 6000-6100 -n 1)
+DISTRIBUTED_ARGS="
+    --nproc_per_node $GPUS_PER_NODE \
+    --nnodes $NNODES \
+    --node_rank $NODE_RANK \
+    --master_addr $MASTER_ADDR \
+    --master_port $MASTER_PORT
+"
+    # --val_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama-validation \
 
-srun python pretrain/run_pretrain.py \
-    --num_nodes=4 \
+torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
+    --num_nodes=${NNODES} \
     --model_name=${MODEL_NAME} \
-    --name=${MODEL_NAME} \
+    --name=${MODEL_NAME}_stacking \
     --method=${METHOD} \
     --config_path=${CONFIG} \
     --out_dir=${SCRIPT_DIR}/${METHOD}/${TIME} \
-    --train_data_dir=/path/to/your/slimpajama \
-    --devices=8 \
-    --global_batch_size=1024 \
+    --train_data_dir=/mnt/nas_v2/common/public/dataset/SlimPajama-627B/slimpajama \
+    --devices=${GPUS_PER_NODE} \
+    --global_batch_size=2048 \
     --learning_rate=3e-4 \
     --min_lr=3e-5 \
     --micro_batch_size=8 \
@@ -48,4 +60,4 @@ srun python pretrain/run_pretrain.py \
     --beta2=0.95 \
     --grad_clip=1.0 \
     --decay_lr=True \
-    --resume_id=5000
+    --resume_id=64000

@@ -1,0 +1,17 @@
+{
+    "src_config_name": "6L2048H",
+    "trg_config_name": "6L4096H",
+    "src_init_path": "/workspace/model/prts/scratch/6L2048H_llama2/iter-032000-ckpt.pth",
+    "src_width": 2048,
+    "trg_width": 4096,
+    "src_depth": 6,
+    "trg_depth": 6,
+    "src_intermediate_size": 5632,
+    "trg_intermediate_size": 8192,
+    "from_left": true,
+    "inner_stacking": false,
+    "embd_name": "wte",
+    "ln_name": "ln_f",
+    "head_name": "lm_head",
+    "layer_name": "h"
+}

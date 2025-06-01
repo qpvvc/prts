@@ -1,0 +1,17 @@
+{
+    "src_config_name": "tiny_LLaMA_400M_like1.1B",
+    "trg_config_name": "tiny_LLaMA_1.1B",
+    "src_init_path": "/workspace/model/prts/scratch/tiny_LLaMA_400M_like1.1B/iter-016000-000500-ckpt.pth",
+    "src_width": 2048,
+    "trg_width": 2048,
+    "src_depth": 8,
+    "trg_depth": 24,
+    "src_intermediate_size": 5632,
+    "trg_intermediate_size": 5632,
+    "from_left": true,
+    "inner_stacking": false,
+    "embd_name": "wte",
+    "ln_name": "ln_f",
+    "head_name": "lm_head",
+    "layer_name": "h"
+}

@@ -171,7 +171,7 @@ def main(
     def main(fabric, train_data_dir, val_data_dir, resume_id, resume_ckpt):
         monitor = Monitor(fabric, window_size=2, time_unit="seconds",
                           log_iter_interval=log_iter_interval, 
-                          resume_id=resume_id // gradient_accumulation_steps,
+                          resume_id=resume_id ##// gradient_accumulation_steps,
                         )
 
         if fabric.global_rank == 0:

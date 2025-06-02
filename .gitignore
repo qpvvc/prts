@@ -24,3 +24,4 @@ pretrain/run_pretrain.py
 prts_configs/stacking_6L_24L.json
 b2b
 *.ipynb
+.nfs*

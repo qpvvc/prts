@@ -287,6 +287,8 @@ def main(
         def hook(module, input, output):
             if isinstance(output, tuple):
                 activation = output[0]
+                if "attn" in layer_name and len(output) > 2 and output[2] is not None:
+                    activations_dict[layer_name + ".attn_map"] = output[2].detach().cpu()                
             else:
                 activation = output
             activations_dict[layer_name] = activation.detach().cpu()
@@ -354,6 +356,8 @@ def main(
             lr = get_lr(state["iter_num"]) if decay_lr else learning_rate
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
+                
+            is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0
 
             is_about_to_save_step = False
             if not is_accumulating and (state["step_count"] + 1) % save_step_interval == 0:
@@ -370,12 +374,23 @@ def main(
                             get_activation_capture_hook(name, captured_activations_for_ckpt)
                         )
                         activation_hook_handles.append(handle)
+                        # attn激活
+                        if hasattr(module_instance, "attn"):
+                            attn_handle = module_instance.attn.register_forward_hook(
+                                get_activation_capture_hook(f"{name}.attn", captured_activations_for_ckpt)
+                            )
+                            activation_hook_handles.append(attn_handle)
+                        # mlp激活
+                        if hasattr(module_instance, "mlp"):
+                            mlp_handle = module_instance.mlp.register_forward_hook(
+                                get_activation_capture_hook(f"{name}.mlp", captured_activations_for_ckpt)
+                            )
+                            activation_hook_handles.append(mlp_handle)                        
                         
             iter_t0 = time.perf_counter()
             input_ids = train_data[:, 0 : model.config.block_size].contiguous()
             targets = train_data[:, 1 : model.config.block_size + 1].contiguous()
 
-            is_accumulating = (state["iter_num"] + 1) % gradient_accumulation_steps != 0
             with fabric.no_backward_sync(model, enabled=is_accumulating):
                 logits = model(input_ids)
                 if hparams['method'] == 'distill':
@@ -473,6 +488,7 @@ def main(
                 fabric.barrier()
                 
             if not is_accumulating and state["step_count"] % save_step_interval == 0:
+                t0 = time.perf_counter()                
                 if hparams['method'] == 'ligo':
                     with FSDP.summon_full_params(model, with_grads=False):
                         with autocast():
@@ -492,7 +508,7 @@ def main(
                     fabric.save(checkpoint_path, state)
 
                     if captured_activations_for_ckpt and fabric.global_rank == 0:
-                        #out_dir = Path(state["hparams"]["out_dir"]) # 从 state 中获取 hparams
+                        #out_dir = Path(state["hparams"]["out_dir"]) 
                         activations_filename = f"activations-iter-{state['iter_num']:06d}-step-{state['step_count']}-rank0.pt"
                         activations_path = out_dir / activations_filename
                         torch.save(captured_activations_for_ckpt, activations_path)
@@ -502,7 +518,7 @@ def main(
                         torch.cuda.synchronize()
                     fabric.print(f"Time to persist checkpoint and activations: {(time.perf_counter() - t0):.2f}s")
 
-            if is_about_to_save_step: # 或者 if activation_hook_handles:
+            if is_about_to_save_step: # 
                 fabric.print(f"Step {state['step_count']}: Removing activation capture hooks.")
                 for handle in activation_hook_handles:
                     handle.remove()

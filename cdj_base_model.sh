@@ -4,38 +4,42 @@ source /workspace/model/prts/venv_prts/bin/activate
 which python
 
 #DEBUG=true
-#DLC=true
+DLC=true
 
 TIME=$(date +%Y%m%d%H%M%S)
 SCRIPT_DIR=/workspace/model/prts
 
-#METHOD=scratch
+METHOD=scratch
 #MODEL_NAME=6L2048H_llama3
-#MODEL_NAME=tiny_LLaMA_400M_like1.1B
-#MODEL_NAME=tiny_LLaMA_400M_like1.1B_width
+MODEL_NAME=tiny_LLaMA_400M_like1.1B
+#MODEL_NAME=tiny_LLaMA_400M_like1.1B_width_v1
 #MODEL_NAME=tiny_LLaMA_1.1B
 
 
-METHOD=stacking
-MODEL_NAME=tiny_LLaMA_410M_1.1B_10B # only for log
-CONFIG="${SCRIPT_DIR}/prts_configs/stacking_8L_24L.json"
+# METHOD=stacking
+# MODEL_NAME=tiny_LLaMA_410M_1.1B_10B # only for log
+# CONFIG="${SCRIPT_DIR}/prts_configs/stacking_8L_24L.json"
 
 
-METHOD=b2b
+#METHOD=b2b
 # # MODEL_NAME=6L2048H_6L4096H # only for log
 # # CONFIG="${SCRIPT_DIR}/prts_configs/b2b_6L1024H.json"
-MODEL_NAME=tiny_LLaMA_400M_1.1B_width
-CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_width.json"
+#MODEL_NAME=tiny_LLaMA_400M_1.1B_width
+#CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_width.json"
 # MODEL_NAME=tiny_LLaMA_400M_1.1B_depth
 # CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_depth.json"
 
 if [ "${METHOD}" == "scratch" ]; then
     resume_option=""
+    resume_option="    
+    --resume_ckpt=/workspace/model/prts/scratch/tiny_LLaMA_400M_like1.1B/iter-080000-002500-ckpt.pth \
+    --resume_id=80000
+    " 
 else
     resume_option="--resume_id=80000"
 fi
 
-OUTPUT_DIR="${SCRIPT_DIR}/${METHOD}/${MODEL_NAME}"
+OUTPUT_DIR="${SCRIPT_DIR}/${METHOD}/${MODEL_NAME}_test"
 DATASET_BASE=/mnt/nas_v2/common/public/dataset
 
 
@@ -122,7 +126,7 @@ torchrun ${DISTRIBUTED_ARGS} pretrain/run_pretrain.py \
     --warmup_steps=3000 \
     --log_step_interval=1 \
     --eval_iters=1000 \
-    --save_step_interval=500 \
+    --save_step_interval=10 \
     --eval_step_interval=50000 \
     --weight_decay=1e-1 \
     --beta1=0.9 \

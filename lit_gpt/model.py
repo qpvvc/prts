@@ -240,7 +240,7 @@ class Block(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[KVCache]]:
 
         n_1 = self.norm_1(x)
-        h, new_kv_cache = self.attn(n_1, rope, max_seq_length, mask, input_pos, kv_cache)
+        h, new_kv_cache, attn_map = self.attn(n_1, rope, max_seq_length, mask, input_pos, kv_cache)
         if self.config.parallel_residual:
             n_2 = n_1 if self.config.shared_attention_norm else self.norm_2(x)
             x = x + h + self.mlp(n_2)
@@ -253,7 +253,7 @@ class Block(nn.Module):
             
             x = x + h
             x = x + self.mlp(self.norm_2(x))
-        return x, new_kv_cache
+        return x, new_kv_cache, attn_map
 
 
 class CausalSelfAttention(nn.Module):
@@ -329,39 +329,45 @@ class CausalSelfAttention(nn.Module):
             v = cache_v.index_copy_(1, input_pos, v)
             kv_cache = k, v
 
-        y = self.scaled_dot_product_attention(q, k, v, mask=mask)
+        y, attn_map = self.scaled_dot_product_attention(q, k, v, mask=mask)
 
         y = y.reshape(B, T, C)  # re-assemble all head outputs side by side
 
         # output projection
         y = self.proj(y)
 
-        return y, kv_cache
+        return y, kv_cache, attn_map
 
     def scaled_dot_product_attention(
         self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, mask: Optional[torch.Tensor] = None
     ):
         scale = 1.0 / math.sqrt(self.config.head_size)
         
-        if (
-            FlashAttention2Available
-            and mask is None
-            and q.device.type == "cuda"
-            and q.dtype in (torch.float16, torch.bfloat16)
-        ):
-            from flash_attn import flash_attn_func
+        # if (
+        #     FlashAttention2Available
+        #     and mask is None
+        #     and q.device.type == "cuda"
+        #     and q.dtype in (torch.float16, torch.bfloat16)
+        # ):
+        #     from flash_attn import flash_attn_func
 
-            return flash_attn_func(q, k, v, dropout_p=0.0, softmax_scale=scale, causal=True)
+        #     return flash_attn_func(q, k, v, dropout_p=0.0, softmax_scale=scale, causal=True)
         q = q.transpose(1, 2)
         k = k.transpose(1, 2)
         v = v.transpose(1, 2)
         if q.size() != k.size():
              k = k.repeat_interleave(q.shape[1]//k.shape[1], dim=1)
              v = v.repeat_interleave(q.shape[1]//v.shape[1], dim=1)
-        y = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, attn_mask=mask, dropout_p=0.0, scale=scale, is_causal=mask is None
-        )
-        return y.transpose(1, 2)
+        # y = torch.nn.functional.scaled_dot_product_attention(
+        #     q, k, v, attn_mask=mask, dropout_p=0.0, scale=scale, is_causal=mask is None
+        # )
+        # 计算 attention scores
+        attn_scores = torch.matmul(q, k.transpose(-2, -1)) * scale
+        if mask is not None:
+            attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
+        attn_map = torch.softmax(attn_scores, dim=-1)  # (B, nh, T, T)
+        y = torch.matmul(attn_map, v)        
+        return y.transpose(1, 2), attn_map
 
 
 class GptNeoxMLP(nn.Module):

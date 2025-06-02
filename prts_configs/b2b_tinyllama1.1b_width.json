@@ -1,6 +1,6 @@
 {
     "src_config_name": "tiny_LLaMA_400M_like1.1B_width",
-    "trg_config_name": "tiny_LLaMA_1.1B_64h_wo_gqa",
+    "trg_config_name": "tiny_LLaMA_400M_like1.1B_width_target",
     "src_init_path": "/workspace/model/prts/scratch/tiny_LLaMA_400M_like1.1B_width/iter-080000-002500-ckpt.pth",
     "src_width": 1024,
     "trg_width": 2048,

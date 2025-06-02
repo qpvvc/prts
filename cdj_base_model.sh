@@ -3,8 +3,8 @@ export WANDB_API_KEY=5117b0efc6fd7faf972b98be176874ead86ccd43
 source /workspace/model/prts/venv_prts/bin/activate
 which python
 
-# DEBUG=true
-DLC=true
+#DEBUG=true
+#DLC=true
 
 TIME=$(date +%Y%m%d%H%M%S)
 SCRIPT_DIR=/workspace/model/prts

@@ -20,7 +20,9 @@ class bert2BERT:
         self.model = model
         self.SRC_TO_TRG_MAPPING = {
             config.src_width: config.trg_width,
-            3*config.src_width: 3*config.trg_width,
+            #3*config.src_width: 3*config.trg_width,
+            config.src_width + 2 * config.src_query_groups * (config.src_width // config.src_head): \
+                config.trg_width + 2 * config.trg_query_groups * ( config.trg_width// config.trg_head),
             config.src_depth: config.trg_depth,
             config.src_intermediate_size: config.trg_intermediate_size,
         }
@@ -50,9 +52,16 @@ class bert2BERT:
             diff = self.config.trg_width - self.config.src_width
             indices_list = list(range(diff))
             indices_list = [x % self.config.src_width for x in indices_list]
+            
+            trg_attn_dim = self.config.trg_width + 2 * self.config.trg_query_groups * ( self.config.trg_width // self.config.trg_head)
+            src_attn_dim = self.config.src_width + 2 * self.config.src_query_groups * (self.config.src_width // self.config.src_head)
+            attn_diff = trg_attn_dim - src_attn_dim
+            attn_indices_list = list(range(attn_diff))
+            attn_indices_list = [x % src_attn_dim for x in range(attn_diff)]
+            
             return_dict = {
                 diff : torch.tensor(indices_list),
-                3 * diff: torch.tensor(3 * indices_list),
+                attn_diff: torch.tensor(attn_indices_list),
             }
             if self.config.trg_intermediate_size - self.config.src_intermediate_size not in return_dict.keys():
                 intermediate_diff = self.config.trg_intermediate_size - self.config.src_intermediate_size

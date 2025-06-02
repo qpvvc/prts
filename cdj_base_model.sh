@@ -21,11 +21,11 @@ MODEL_NAME=tiny_LLaMA_410M_1.1B_10B_interp3 # only for log
 CONFIG="${SCRIPT_DIR}/prts_configs/stacking_tinyllama1.1b_interpolation3.json"
 
 
-#METHOD=b2b
+METHOD=b2b
 # # MODEL_NAME=6L2048H_6L4096H # only for log
 # # CONFIG="${SCRIPT_DIR}/prts_configs/b2b_6L1024H.json"
-#MODEL_NAME=tiny_LLaMA_400M_1.1B_width
-#CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_width.json"
+MODEL_NAME=tiny_LLaMA_400M_1.1B_width
+CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_width.json"
 # MODEL_NAME=tiny_LLaMA_400M_1.1B_depth
 # CONFIG="${SCRIPT_DIR}/prts_configs/b2b_tinyllama1.1b_depth.json"
 

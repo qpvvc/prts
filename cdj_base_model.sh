@@ -32,11 +32,11 @@ MODEL_NAME=tiny_LLaMA_400M_like1.1B
 if [ "${METHOD}" == "scratch" ]; then
     resume_option=""
     resume_option="    
-    --resume_ckpt=/workspace/model/prts/scratch/tiny_LLaMA_400M_like1.1B/iter-080000-002500-ckpt.pth \
-    --resume_id=80000
+    --resume_ckpt=/workspace/model/prts/scratch/tiny_LLaMA_400M_like1.1B/iter-320000-010000-ckpt.pth \
+    --resume_id=320000
     " 
 else
-    resume_option="--resume_id=80000"
+    resume_option="--resume_id=32000"
 fi
 
 OUTPUT_DIR="${SCRIPT_DIR}/${METHOD}/${MODEL_NAME}_test"
